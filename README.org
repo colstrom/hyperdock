@@ -1,0 +1,472 @@
+#+TITLE: HyperDock: A Hypermedia API for Docker
+#+LATEX: \pagebreak
+
+* Overview
+
+  ~HyperDock~ is a Hypermedia API for Docker. It augments the standard Docker
+  API with a discoverable, link-driven API conforming to the [[http://stateless.co/hal_specification.html][HAL Specification]].
+
+* Why does this exist?
+
+  Docker's internal structure is very graph-oriented, but the API is less so. It
+  should be possible for most clients to "write themselves" (or at least
+  configure themselves) using the data available through the API. At present,
+  this is cumbersome.
+
+* Status
+
+  ~HyperDock~ is probably not suitable for production use yet.
+
+* Installation
+
+  #+BEGIN_SRC shell
+    gem install hyperdock
+  #+END_SRC
+
+* Usage
+
+  To launch it, just run:
+
+  #+BEGIN_SRC shell
+    hyperdock-api
+  #+END_SRC
+
+  The API will be available on port =8080=.
+
+** Launch something with ~docker-compose~ (example)
+
+   For the purpose of documentation, we'll use ~cloud-surveyor~.
+
+   #+BEGIN_SRC shell
+     git clone https://github.com/colstrom/cloud-surveyor
+     cd cloud-surveyor
+     docker-compose up -d
+   #+END_SRC
+
+   This should run two service containers for ~cloud-surveyor~:
+     - ~redis~
+     - ~elasticmq~
+
+** Explore!
+
+*** The Root Resource
+
+    Let's see what we have at the root resource (this should be a
+    self-describing gateway to the rest of the API:
+
+    #+BEGIN_SRC shell
+      curl -s http://localhost:8080/ | jq .
+    #+END_SRC
+
+    #+BEGIN_SRC json
+      {
+        "_links": {
+          "self": {
+            "href": "/"
+          },
+          "projects": {
+            "href": "/projects"
+          },
+          "project": {
+            "href": "/project/{project}",
+            "templated": true
+          },
+          "project:services": {
+            "href": "/project/{project}/services",
+            "templated": true
+          },
+          "containers": {
+            "href": "/containers"
+          },
+          "container": {
+            "href": "/container/{container}",
+            "templated": true
+          },
+          "container:ports": {
+            "href": "/container/{container}/ports",
+            "templated": true
+          }
+        },
+        "version": 1
+      }
+    #+END_SRC
+
+    What we see here (and in all the responses) is a list of resources reachable
+    from this resource. Since this is the root level, we have a rough map of the
+    main API.
+
+    =/containers= seems pretty standard for Docker, so let's check out
+    =projects= instead.
+
+*** Projects
+
+    =/projects= lists all ~docker-compose~ projects running on this docker host.
+
+    #+BEGIN_SRC shell
+      curl -s localhost:8080/projects | jq .
+    #+END_SRC
+
+    #+BEGIN_SRC json
+      {
+        "_links": {
+          "self": {
+            "href": "/projects"
+          },
+          "project:cloudsurveyor": {
+            "href": "/project/cloudsurveyor"
+          }
+        },
+        "projects": [
+          "cloudsurveyor"
+        ]
+      }
+    #+END_SRC
+
+    Let's follow the links, and see where we end up!
+
+*** Project
+
+    =/project/{project}= returns a project. Projects have things like
+    =services=, so we should expect a =link= for those.
+
+    #+BEGIN_SRC shell
+      curl -s localhost:8080/projects/cloudsurveyor | jq .
+    #+END_SRC
+
+    #+BEGIN_SRC json
+      {
+        "_links": {
+          "self": {
+            "href": "/project/cloudsurveyor"
+          },
+          "services": {
+            "href": "/project/cloudsurveyor/services"
+          }
+        }
+      }
+    #+END_SRC
+
+*** Services
+
+    =/project/{project}/services= returns a list of services for a project.
+    These should correspond to the services described in your
+    =docker-compose.yaml=.
+
+    #+BEGIN_SRC shell
+      curl -s localhost:8080/projects/cloudsurveyor/services | jq .
+    #+END_SRC
+
+    #+BEGIN_SRC json
+      {
+        "_links": {
+          "self": {
+            "href": "/project/cloudsurveyor/services"
+          },
+          "service:redis": {
+            "href": "/project/cloudsurveyor/service/redis"
+          },
+          "service:elasticmq": {
+            "href": "/project/cloudsurveyor/service/elasticmq"
+          }
+        },
+        "services": [
+          "redis",
+          "elasticmq"
+        ]
+      }
+    #+END_SRC
+
+    We can see two services here: =redis= and =elasticmq=. Compare this to the
+    =docker-compose.yaml= in the ~cloud-surveyor~ repository:
+
+    #+BEGIN_SRC yaml
+      ---
+      version: "2"
+      services:
+        elasticmq:
+          image: colstrom/elasticmq
+          ports:
+            - "9324:9324"
+        redis:
+          image: redis:alpine
+          ports:
+            - "6379"
+    #+END_SRC
+
+    Let's have a look at that =redis= service, shall we?
+
+*** Service
+
+    =/project/{project}/service/{service}= returns a list of containers for the
+    specified service.
+
+    #+BEGIN_SRC shell
+      curl -s localhost:8080/projects/cloudsurveyor/service/redis | jq .
+    #+END_SRC
+
+    #+BEGIN_SRC json
+      {
+        "_links": {
+          "self": {
+            "href": "/project/cloudsurveyor/service/redis"
+          },
+          "containers": [
+            {
+              "href": "/container/27d6320f12e28b57ea7b2cbf423e647ab7f56793d7622069c9dc1d2f7a8d362b"
+            }
+          ]
+        }
+      }
+    #+END_SRC
+
+    Well, look at that: something that isn't nested deeper under the same path!
+
+    What happens if we scale up the redis containers a bit?
+
+    #+BEGIN_SRC shell
+      docker-compose scale redis=3
+    #+END_SRC
+
+    And then check the =service= links again?
+
+    #+BEGIN_SRC shell
+      curl -s localhost:8080/projects/cloudsurveyor/service/redis | jq .
+    #+END_SRC
+
+    #+BEGIN_SRC json
+      {
+        "_links": {
+          "self": {
+            "href": "/project/cloudsurveyor/service/redis"
+          },
+          "containers": [
+            {
+              "href": "/container/a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351"
+            },
+            {
+              "href": "/container/5dd8c8db1b7e767ca5529165bf337e70096e32e635346208eda173a0a1eb6c3c"
+            },
+            {
+              "href": "/container/27e0bc50a08b7f54f375ba098a64733720e1287e0f18763c56150feb4869bd1b"
+            }
+          ]
+        }
+      }
+    #+END_SRC
+
+    But what do those =containers= look like?
+
+*** Container
+
+    =/container/{container}= returns information about a specific container, as
+    you might expect.
+
+    #+BEGIN_SRC shell
+      curl -s localhost:8080/container/a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351 | jq .
+    #+END_SRC
+
+    #+BEGIN_SRC json
+      {
+        "_links": {
+          "self": {
+            "href": "/container/a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351"
+          },
+          "mounts": {
+            "href": "/container/a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351/mounts"
+          },
+          "networks": {
+            "href": "/container/a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351/networks"
+          },
+          "ports": {
+            "href": "/container/a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351/ports"
+          }
+        },
+        "info": {
+          "Names": [
+            "/cloudsurveyor_redis_2"
+          ],
+          "Image": "redis:alpine",
+          "ImageID": "sha256:2aabafe89cbffe63a812e3965137f36df73488488a6ad4ba641272a3cf384cd1",
+          "Command": "docker-entrypoint.sh redis-server",
+          "Created": 1471154629,
+          "Ports": [
+            {
+              "IP": "0.0.0.0",
+              "PrivatePort": 6379,
+              "PublicPort": 32770,
+              "Type": "tcp"
+            }
+          ],
+          "Labels": {
+            "com.docker.compose.config-hash": "7823e6dcfbb9d488dc1be2e26cff00c9019451db8fcc5187f711f17e4a161a4f",
+            "com.docker.compose.container-number": "2",
+            "com.docker.compose.oneoff": "False",
+            "com.docker.compose.project": "cloudsurveyor",
+            "com.docker.compose.service": "redis",
+            "com.docker.compose.version": "1.8.0"
+          },
+          "State": "running",
+          "Status": "Up 4 minutes",
+          "HostConfig": {
+            "NetworkMode": "cloudsurveyor_default"
+          },
+          "NetworkSettings": {
+            "Networks": {
+              "cloudsurveyor_default": {
+                "IPAMConfig": null,
+                "Links": null,
+                "Aliases": null,
+                "NetworkID": "b6665ba6532fb26f8595c2155c1a5ca6fd9397b69c1033dc39ddfecc7abe470b",
+                "EndpointID": "f416509bd5386316bfb84197d01ee173e41b741a6ef4b3a3545e7c03ead48a11",
+                "Gateway": "172.19.0.1",
+                "IPAddress": "172.19.0.5",
+                "IPPrefixLen": 16,
+                "IPv6Gateway": "",
+                "GlobalIPv6Address": "",
+                "GlobalIPv6PrefixLen": 0,
+                "MacAddress": "02:42:ac:13:00:05"
+              }
+            }
+          },
+          "Mounts": [
+            {
+              "Name": "eba94001326155110ed4901f12936c5a0c05c79ca550fd023fa55e12df965a13",
+              "Source": "/var/lib/docker/volumes/eba94001326155110ed4901f12936c5a0c05c79ca550fd023fa55e12df965a13/_data",
+              "Destination": "/data",
+              "Driver": "local",
+              "Mode": "",
+              "RW": true,
+              "Propagation": ""
+            }
+          ],
+          "id": "a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351"
+        }
+      }
+    #+END_SRC
+
+
+*** Ports
+
+    =/container/{container}/ports= returns port information in various
+    configurations, for convenient discovery.
+
+    #+BEGIN_SRC shell
+      curl -s localhost:8080/container/a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351/ports | jq .
+    #+END_SRC
+
+    #+BEGIN_SRC json
+      {
+        "_links": {
+          "self": {
+            "href": "/container/a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351/ports"
+          }
+        },
+        "all": [
+          {
+            "IP": "0.0.0.0",
+            "PrivatePort": 6379,
+            "PublicPort": 32770,
+            "Type": "tcp"
+          }
+        ],
+        "PublicPort": {
+          "32770": [
+            {
+              "IP": "0.0.0.0",
+              "PrivatePort": 6379,
+              "PublicPort": 32770,
+              "Type": "tcp"
+            }
+          ]
+        },
+        "PrivatePort": {
+          "6379": [
+            {
+              "IP": "0.0.0.0",
+              "PrivatePort": 6379,
+              "PublicPort": 32770,
+              "Type": "tcp"
+            }
+          ]
+        },
+        "IP": {
+          "0.0.0.0": [
+            {
+              "IP": "0.0.0.0",
+              "PrivatePort": 6379,
+              "PublicPort": 32770,
+              "Type": "tcp"
+            }
+          ]
+        },
+        "Type": {
+          "tcp": [
+            {
+              "IP": "0.0.0.0",
+              "PrivatePort": 6379,
+              "PublicPort": 32770,
+              "Type": "tcp"
+            }
+          ]
+        },
+        "tcp": [
+          {
+            "IP": "0.0.0.0",
+            "PrivatePort": 6379,
+            "PublicPort": 32770,
+            "Type": "tcp"
+          }
+        ],
+        "udp": []
+      }
+    #+END_SRC
+
+    So, from the top, we've found the ports bound on the host for a service
+    container associated with a project. In the simple example here, that's easy
+    enough to dig out of the Docker API, but navigating by relationships gives
+    us more flexibility and helps keep things manageable at scale.
+
+*** Containers
+
+    =/containers/= returns a list of all containers running on the host, with no
+    particular ordering or filters.
+
+    #+BEGIN_SRC shell
+      curl -s localhost:8080/containers | jq .
+    #+END_SRC
+
+    #+BEGIN_SRC json
+      {
+        "_links": {
+          "self": {
+            "href": "/containers"
+          },
+          "container:a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351": {
+            "href": "/container/a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351"
+          },
+          "container:5dd8c8db1b7e767ca5529165bf337e70096e32e635346208eda173a0a1eb6c3c": {
+            "href": "/container/5dd8c8db1b7e767ca5529165bf337e70096e32e635346208eda173a0a1eb6c3c"
+          },
+          "container:27e0bc50a08b7f54f375ba098a64733720e1287e0f18763c56150feb4869bd1b": {
+            "href": "/container/27e0bc50a08b7f54f375ba098a64733720e1287e0f18763c56150feb4869bd1b"
+          },
+          "container:47c9f36e225e722380ce0bf3a7a41365b754fad8df8c1a3c64b2223a6d6e3548": {
+            "href": "/container/47c9f36e225e722380ce0bf3a7a41365b754fad8df8c1a3c64b2223a6d6e3548"
+          }
+        },
+        "containers": [
+          "a59c2bdc3691df1cd895c3705c1d260d1ef74323d5d032535e4c34f2d9b29351",
+          "5dd8c8db1b7e767ca5529165bf337e70096e32e635346208eda173a0a1eb6c3c",
+          "27e0bc50a08b7f54f375ba098a64733720e1287e0f18763c56150feb4869bd1b",
+          "47c9f36e225e722380ce0bf3a7a41365b754fad8df8c1a3c64b2223a6d6e3548"
+        ]
+      }
+    #+END_SRC
+
+* License
+
+  ~hyperdock~ is available under the [[https://tldrlegal.com/license/mit-license][MIT License]]. See ~LICENSE.txt~ for the full text.
+
+* Contributors
+
+  - [[https://colstrom.github.io/][Chris Olstrom]] | [[mailto:chris@olstrom.com][e-mail]] | [[https://twitter.com/ChrisOlstrom][Twitter]]
