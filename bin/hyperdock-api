@@ -14,6 +14,7 @@ Webmachine.application.routes do
   add ['container', :container, 'ports'], HyperDock::Resource::ContainerPorts
   add ['networks'], HyperDock::Resource::Networks
   add ['network', :network], HyperDock::Resource::Network
+  add ['volumes'], HyperDock::Resource::Volumes
 end
 
 Webmachine.application.run
