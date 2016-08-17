@@ -19,9 +19,18 @@ module HyperDock
         false
       end
 
+      Contract None => ArrayOf[HashOf[RespondTo[:to_s], String]]
+      def networks
+        @networks ||= (container.info.dig('NetworkSettings', 'Networks') || {})
+                      .values
+                      .map { |network| network['NetworkID'] }
+                      .compact
+                      .map { |network| { href: "/network/#{network}" } }
+      end
+
       def links
         @links ||= {
-          networks: { href: "/#{request.disp_path}/networks" },
+          networks: networks,
           ports: { href: "/#{request.disp_path}/ports" }
         }
       end
