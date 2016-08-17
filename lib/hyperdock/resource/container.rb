@@ -21,7 +21,6 @@ module HyperDock
 
       def links
         @links ||= {
-          mounts: { href: "/#{request.disp_path}/mounts" },
           networks: { href: "/#{request.disp_path}/networks" },
           ports: { href: "/#{request.disp_path}/ports" }
         }
