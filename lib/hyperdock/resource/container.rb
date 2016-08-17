@@ -28,9 +28,17 @@ module HyperDock
                       .map { |network| { href: "/network/#{network}" } }
       end
 
+      def volumes
+        @volumes ||= container
+                     .info
+                     .fetch('Mounts') { [] }
+                     .map { |volume| { href: "/volume/#{volume.fetch('Name')}" } }
+      end
+
       def links
         @links ||= {
           networks: networks,
+          volumes: volumes,
           ports: { href: "/#{request.disp_path}/ports" }
         }
       end
