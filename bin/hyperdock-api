@@ -15,6 +15,7 @@ Webmachine.application.routes do
   add ['networks'], HyperDock::Resource::Networks
   add ['network', :network], HyperDock::Resource::Network
   add ['volumes'], HyperDock::Resource::Volumes
+  add ['volume', :volume], HyperDock::Resource::Volume
 end
 
 Webmachine.application.run

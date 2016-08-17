@@ -19,7 +19,8 @@ module HyperDock
           'container:ports' => { href: '/container/{container}/ports', templated: true },
           networks: { href: '/networks' },
           network: { href: '/network/{network}', templated: true },
-          volumes: { href: '/volumes' }
+          volumes: { href: '/volumes' },
+          volume: { href: '/volume/{volume}', templated: true }
         }
       end
     end
