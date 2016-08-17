@@ -11,6 +11,7 @@ Webmachine.application.routes do
   add ['project', :project, 'service', :service], HyperDock::Resource::ProjectService
   add ['containers'], HyperDock::Resource::Containers
   add ['container', :container], HyperDock::Resource::Container
+  add ['container', :container, 'networks'], HyperDock::Resource::ContainerNetworks
   add ['container', :container, 'ports'], HyperDock::Resource::ContainerPorts
 end
 

@@ -1,4 +1,5 @@
 require_relative 'resource/container'
+require_relative 'resource/container_networks'
 require_relative 'resource/container_ports'
 require_relative 'resource/containers'
 require_relative 'resource/project'
