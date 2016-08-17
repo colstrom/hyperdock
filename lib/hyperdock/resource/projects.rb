@@ -11,15 +11,28 @@ module HyperDock
         end.uniq
       end
 
-      Contract None => HashOf[RespondTo[:to_s], Hash]
-      def links
-        @links ||= projects.map do |project|
-          { "project:#{project}" => { href: "/project/#{project}" } }
+      Contract None => ArrayOf[Hash]
+      def project_links
+        @project_links ||= projects.map do |project|
+          { name: project, href: "/project/#{project}" }
+        end
+      end
+
+      Contract None => Hash
+      def named_links
+        @named_links ||= project_links.map do |project|
+          { "project:#{project[:name]}" => project }
         end.reduce(&:merge)
       end
 
+      def links
+        @links ||= {
+          projects: project_links
+        }.merge(named_links)
+      end
+
       def attributes
-        { projects: projects }
+        { names: projects }
       end
     end
   end
