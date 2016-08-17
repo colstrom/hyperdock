@@ -4,7 +4,7 @@ require_relative 'core'
 module HyperDock
   module Resource
     class Projects < Core
-      Contract None => ArrayOf[String]
+      Contract None => ArrayOf[Maybe[String]]
       def projects
         @projects ||= ::Docker::Container.all.map do |container|
           container.info.dig 'Labels', 'com.docker.compose.project'
