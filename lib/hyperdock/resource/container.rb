@@ -19,32 +19,50 @@ module HyperDock
         false
       end
 
-      Contract None => ArrayOf[HashOf[RespondTo[:to_s], String]]
+      def attributes
+        @attributes ||= container.info
+      end
+
+      Contract None => Hash
       def networks
-        @networks ||= (container.info.dig('NetworkSettings', 'Networks') || {})
-                      .values
-                      .map { |network| network['NetworkID'] }
-                      .compact
-                      .map { |network| { href: "/network/#{network}" } }
+        @networks ||= attributes.dig('NetworkSettings', 'Networks') || {}
       end
 
+      Contract None => ArrayOf[Hash]
+      def network_links
+        @network_links ||= networks.flat_map do |name, network|
+          { name: name, href: "/network/#{network['NetworkID']}" }
+        end
+      end
+
+      Contract None => ArrayOf[Hash]
       def volumes
-        @volumes ||= container
-                     .info
-                     .fetch('Mounts') { [] }
-                     .map { |volume| { href: "/volume/#{volume.fetch('Name')}" } }
+        @volumes ||= attributes.fetch('Mounts') { [] }
       end
 
+      Contract None => ArrayOf[Hash]
+      def volume_links
+        @volume_links ||= volumes.map do |volume|
+          { name: volume['Destination'], href: "/volume/#{volume['Name']}" }
+        end
+      end
+
+      def named_links
+        @named_links ||= [
+          network_links
+            .map { |network| { "network:#{network[:name]}" => network } },
+          volume_links
+            .map { |volume| { "volume:#{volume[:name]}" => volume } }
+        ].flatten.reduce(&:merge)
+      end
+
+      Contract None => HashOf[RespondTo[:to_s], Or[Hash, ArrayOf[Hash]]]
       def links
         @links ||= {
-          networks: networks,
-          volumes: volumes,
+          networks: network_links,
+          volumes: volume_links,
           ports: { href: "/#{request.disp_path}/ports" }
-        }
-      end
-
-      def attributes
-        { info: container.info }
+        }.merge(named_links)
       end
     end
   end
