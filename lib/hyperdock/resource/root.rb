@@ -16,7 +16,8 @@ module HyperDock
           'project:services' => { href: '/project/{project}/services', templated: true },
           containers: { href: '/containers' },
           container: { href: '/container/{container}', templated: true },
-          'container:ports' => { href: '/container/{container}/ports', templated: true }
+          'container:ports' => { href: '/container/{container}/ports', templated: true },
+          networks: { href: '/networks' }
         }
       end
     end
