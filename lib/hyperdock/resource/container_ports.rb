@@ -32,6 +32,10 @@ module HyperDock
         @udp ||= ports.select { |port| port['Type'] == 'udp' }
       end
 
+      def links
+        {}
+      end
+
       def attributes
         {
           all: ports,
