@@ -7,7 +7,6 @@ Webmachine.application.routes do
   add [], HyperDock::Resource::Root
   add ['projects'], HyperDock::Resource::Projects
   add ['project', :project], HyperDock::Resource::Project
-  add ['project', :project, 'services'], HyperDock::Resource::ProjectServices
   add ['project', :project, 'service', :service], HyperDock::Resource::ProjectService
   add ['containers'], HyperDock::Resource::Containers
   add ['container', :container], HyperDock::Resource::Container
