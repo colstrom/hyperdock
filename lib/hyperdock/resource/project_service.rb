@@ -26,15 +26,32 @@ module HyperDock
       def containers
         @containers ||= ::Docker::Container.all.select do |container|
           matches_project?(container) && matches_service?(container)
-        end.map(&:id)
+        end
+      end
+
+      def container_links
+        @container_links ||= containers.flat_map do |container|
+          # TODO: Determine how this should be presented.
+          [container.info.fetch('Names').first].map do |name|
+            { name: name, href: "/container/#{container.id}" }
+          end
+        end
+      end
+
+      def named_links
+        @named_links ||= container_links.map do |container|
+          { "container:#{container[:name]}" => container }
+        end.reduce(&:merge)
       end
 
       def links
         @links ||= {
-          'containers' => containers.map do |container|
-            { href: "/container/#{container}" }
-          end
-        }
+          containers: container_links
+        }.merge(named_links)
+      end
+
+      def attributes
+        { name: service }
       end
     end
   end
